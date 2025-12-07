@@ -115,9 +115,11 @@ export default async function handler(req, res) {
         jobNumber: p.job_number || "",
         contact: p.contact || "",
 
+        // NEW: dropdown field "service"
+        service: p.service || "",
+
         // content for the website
         title: p.job_title || "",
-        service: p.job_service || "",
         description: p.job_description || "",
         city: p.city || "",
         date: p.job_date || "",
