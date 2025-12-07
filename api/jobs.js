@@ -29,12 +29,12 @@ export default async function handler(req, res) {
   )}/records/search`;
 
   // Basic search body: you can add filters later if you want
-  const body = {
-    locationId,
-    limit: 12,
-    offset: 0
-    // filters: [... ]  // optional later
-  };
+const body = {
+  locationId,
+  page: 1,
+  pageLimit: 12
+  // filters: [...] // optional later
+};
 
   try {
     const ghlRes = await fetch(url, {
