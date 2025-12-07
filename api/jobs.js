@@ -76,28 +76,47 @@ export default async function handler(req, res) {
     });
 
     const jobs = visibleJobs.map((record) => {
-      const p = record.properties || {};
+  const p = record.properties || {};
 
-      // job_amount is { currency, value } in your payload
-      let amount = null;
-      if (p.job_amount) {
-        if (typeof p.job_amount === "object" && p.job_amount.value != null) {
-          amount = p.job_amount.value;
-        } else {
-          amount = p.job_amount;
-        }
-      }
+  // job_amount is { currency, value } in your payload
+  let amount = null;
+  if (p.job_amount) {
+    if (typeof p.job_amount === "object" && p.job_amount.value != null) {
+      amount = p.job_amount.value;
+    } else {
+      amount = p.job_amount;
+    }
+  }
 
-      return {
-        id: record.id,
-        title: p.job_title || "",
-        city: p.city || "",
-        date: p.job_date || "",
-        amount,
-        description: p.job_description || "",
-        heroImage: p.hero_image_url || "" // you can add this field later in GHL
-      };
-    });
+  // show_on_website is an array like ["dont_post_to_website"] or []
+  const showOnWebsiteRaw = p.show_on_website || [];
+  const showOnWebsite =
+    !Array.isArray(showOnWebsiteRaw) ||
+    !showOnWebsiteRaw.includes("dont_post_to_website");
+
+  return {
+    // core identifiers
+    id: record.id,
+    jobNumber: p.job_number || "",
+    contact: p.contact || "",
+
+    // content for the website
+    title: p.job_title || "",
+    description: p.job_description || "",
+    city: p.city || "",
+    date: p.job_date || "", // or p["job_date_(est)"] if the API uses that key
+
+    amount, // numeric amount only
+    photo: p.job_photo || "",       // <- your job photo field
+    showOnWebsite,                  // <- boolean we computed
+    showOnWebsiteRaw,               // <- raw array in case you need it
+
+    // timestamps (directly from record)
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
+});
+
 
     return res.status(200).json({ jobs });
   } catch (err) {
