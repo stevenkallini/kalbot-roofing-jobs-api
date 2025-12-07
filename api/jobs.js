@@ -9,10 +9,10 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
-  const jobsObjectName = process.env.GHL_JOBS_OBJECT_NAME; // e.g. "custom_objects.jobs"
+  const jobsObjectName = process.env.GHL_JOBS_OBJECT_NAME || "custom_objects.jobs";
 
   if (!apiKey || !locationId || !jobsObjectName) {
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: "API not configured",
       missing: {
         hasApiKey: !!apiKey,
@@ -22,21 +22,30 @@ export default async function handler(req, res) {
     });
   }
 
-  // Build the correct URL:
-  // GET /custom-objects/{objectName}/records?locationId=...&limit=12
-  const url = `${API_BASE}/custom-objects/${encodeURIComponent(
+  // 👉 Correct endpoint for custom object search:
+  // POST /objects/:schemaKey/records/search
+  const url = `${API_BASE}/objects/${encodeURIComponent(
     jobsObjectName
-  )}/records?locationId=${encodeURIComponent(locationId)}&limit=12`;
+  )}/records/search`;
+
+  // Basic search body: you can add filters later if you want
+  const body = {
+    locationId,
+    limit: 12,
+    offset: 0
+    // filters: [... ]  // optional later
+  };
 
   try {
     const ghlRes = await fetch(url, {
-      method: "GET",
+      method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        // Use the version header your API Explorer shows; 2021-07-28 is common.
+        // Use the same Version that already worked with your token
         Version: "2021-07-28"
-      }
+      },
+      body: JSON.stringify(body)
     });
 
     if (!ghlRes.ok) {
@@ -51,13 +60,13 @@ export default async function handler(req, res) {
 
     const data = await ghlRes.json();
 
-    // Custom objects usually come back as data or records;
+    // Most custom object APIs return the records in data.records or data.data
     const rawRecords = data.records || data.data || [];
 
-    // TEMP: if nothing shows, you can return rawRecords directly to inspect shape
+    // If this comes back empty or weird, uncomment the next line once to inspect:
     // return res.status(200).json({ rawRecords });
 
-    // Filter only jobs that should be shown on the website
+    // Filter: only show jobs flagged for website (adjust field names as needed)
     const visibleJobs = rawRecords.filter((record) => {
       const f = record.fields || record.properties || record;
       const flag =
