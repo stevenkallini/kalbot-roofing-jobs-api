@@ -62,7 +62,7 @@ const body = {
 
     // Most custom object APIs return the records in data.records or data.data
     const rawRecords = data.records || data.data || [];
-
+    return res.status(200).json({ rawRecords });
     // If this comes back empty or weird, uncomment the next line once to inspect:
     // return res.status(200).json({ rawRecords });
 
