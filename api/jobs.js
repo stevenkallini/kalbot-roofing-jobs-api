@@ -23,13 +23,12 @@ export default async function handler(req, res) {
 
     const ghlRes = await fetch(url, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        // Version header may or may not be required depending on your token.
-        // If GHL API Explorer shows a `Version` header, keep this:
-        Version: "1.0"
-      }
+     headers: {
+  Authorization: `Bearer ${apiKey}`,
+  "Content-Type": "application/json",
+  Version: "2021-07-28"
+}
+
     });
 
 if (!ghlRes.ok) {
