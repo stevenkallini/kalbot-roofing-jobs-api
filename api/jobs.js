@@ -117,6 +117,7 @@ export default async function handler(req, res) {
 
         // content for the website
         title: p.job_title || "",
+        service: p.job_service || "",
         description: p.job_description || "",
         city: p.city || "",
         date: p.job_date || "",
