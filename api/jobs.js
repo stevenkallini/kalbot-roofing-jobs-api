@@ -3,14 +3,13 @@
 const API_BASE = "https://services.leadconnectorhq.com";
 
 function setCors(res) {
-  // You can replace * with your GHL domain if you want to restrict it
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 }
 
 export default async function handler(req, res) {
-  // Handle CORS preflight
+  // CORS preflight
   if (req.method === "OPTIONS") {
     setCors(res);
     return res.status(200).end();
@@ -37,8 +36,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // Correct search endpoint for custom objects:
-  // POST /objects/:schemaKey/records/search
+  // Custom object records search endpoint
   const url = `${API_BASE}/objects/${encodeURIComponent(
     jobsObjectName
   )}/records/search`;
@@ -55,7 +53,7 @@ export default async function handler(req, res) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        Version: "2021-07-28" // keep this as in API Explorer
+        Version: "2021-07-28"
       },
       body: JSON.stringify(body)
     });
@@ -74,104 +72,54 @@ export default async function handler(req, res) {
     const data = await ghlRes.json();
     const rawRecords = data.records || data.data || [];
 
-    // Filter logic:
-    // - If show_on_website has values:
-    //    * Exclude records where it includes "dont_post_to_website"
-    // - If show_on_website is empty/missing:
-    //    * Include (default visible)
+    // Filter out records explicitly marked as not for website
     const visibleJobs = rawRecords.filter((record) => {
       const p = record.properties || {};
       const flagArr = p.show_on_website || [];
-
-      if (Array.isArray(flagArr) && flagArr.length > 0) {
-        return !flagArr.includes("dont_post_to_website");
-      }
-      // No flag set => show by default
-      return true;
+      return !(Array.isArray(flagArr) && flagArr.includes("dont_post_to_website"));
     });
 
-const jobs = visibleJobs.map((record) => {
-  const p = record.properties || {};
+    // Map into website-friendly structure
+    const jobs = visibleJobs.map((record) => {
+      const p = record.properties || {};
 
-  // job_amount is { currency, value } in your payload
-  let amount = null;
-  if (p.job_amount) {
-    if (typeof p.job_amount === "object" && p.job_amount.value != null) {
-      amount = p.job_amount.value;
-    } else {
-      amount = p.job_amount;
-    }
-  }
+      // Process job amount
+      let amount = null;
+      if (p.job_amount) {
+        if (typeof p.job_amount === "object" && p.job_amount.value != null) {
+          amount = p.job_amount.value;
+        } else {
+          amount = p.job_amount;
+        }
+      }
 
-  // show_on_website is an array like ["post_to_website"] / ["dont_post_to_website"]
-  const showOnWebsiteRaw = p.show_on_website || [];
-  const showOnWebsite =
-    !Array.isArray(showOnWebsiteRaw) ||
-    !showOnWebsiteRaw.includes("dont_post_to_website");
+      // Extract photo URL (array of objects)
+      let photo = "";
+      const rawPhoto = p.job_photo;
+      if (Array.isArray(rawPhoto) && rawPhoto.length > 0 && rawPhoto[0].url) {
+        photo = rawPhoto[0].url;
+      } else if (typeof rawPhoto === "string") {
+        photo = rawPhoto;
+      }
 
-  // job_photo is an array of { meta, url } objects in your JSON
-  let photo = "";
-  const rawPhoto = p.job_photo;
-
-  if (Array.isArray(rawPhoto) && rawPhoto.length > 0 && rawPhoto[0].url) {
-    photo = rawPhoto[0].url;         // use first image URL
-  } else if (rawPhoto && typeof rawPhoto === "string") {
-    photo = rawPhoto;                // fallback if it's ever stored as a string
-  }
-
-  return {
-    // core identifiers
-    id: record.id,
-    jobNumber: p.job_number || "",
-    contact: p.contact || "",
-
-    // dropdown "service"
-    service: p.service || "",
-
-    // content for the website
-    title: p.job_title || "",
-    description: p.job_description || "",
-    city: p.city || "",
-    date: p.job_date || "",
-
-    amount,
-    photo,                 // <-- now a plain string URL
-    showOnWebsite,
-    showOnWebsiteRaw,
-
-    createdAt: record.createdAt,
-    updatedAt: record.updatedAt
-  };
-});
-
-
-      // show_on_website is an array like ["dont_post_to_website"] or []
       const showOnWebsiteRaw = p.show_on_website || [];
       const showOnWebsite =
         !Array.isArray(showOnWebsiteRaw) ||
         !showOnWebsiteRaw.includes("dont_post_to_website");
 
       return {
-        // core identifiers
         id: record.id,
         jobNumber: p.job_number || "",
         contact: p.contact || "",
-
-        // NEW: dropdown field "service"
         service: p.service || "",
-
-        // content for the website
         title: p.job_title || "",
         description: p.job_description || "",
         city: p.city || "",
         date: p.job_date || "",
-
-        amount,                   // numeric amount only
-        photo: p.job_photo || "", // URL for job photo
-        showOnWebsite,            // boolean we computed
-        showOnWebsiteRaw,         // raw array in case you need it
-
-        // timestamps (directly from record)
+        amount,
+        photo,
+        showOnWebsite,
+        showOnWebsiteRaw,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt
       };
@@ -179,6 +127,7 @@ const jobs = visibleJobs.map((record) => {
 
     setCors(res);
     return res.status(200).json({ jobs });
+
   } catch (err) {
     console.error("Jobs API error:", err);
     setCors(res);
