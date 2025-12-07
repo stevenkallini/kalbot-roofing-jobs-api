@@ -32,11 +32,16 @@ export default async function handler(req, res) {
       }
     });
 
-    if (!ghlRes.ok) {
-      const text = await ghlRes.text();
-      console.error("GHL error:", text);
-      return res.status(ghlRes.status).json({ error: "Error from GHL API" });
-    }
+if (!ghlRes.ok) {
+  const text = await ghlRes.text();
+  console.error("GHL error:", text);
+  return res.status(ghlRes.status).json({
+    error: "Error from GHL API",
+    status: ghlRes.status,
+    body: text
+  });
+}
+
 
     const data = await ghlRes.json();
 
