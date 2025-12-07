@@ -22,19 +22,17 @@ export default async function handler(req, res) {
     });
   }
 
-  // 👉 Correct endpoint for custom object search:
+  // Correct search endpoint for custom objects:
   // POST /objects/:schemaKey/records/search
   const url = `${API_BASE}/objects/${encodeURIComponent(
     jobsObjectName
   )}/records/search`;
 
-  // Basic search body: you can add filters later if you want
-const body = {
-  locationId,
-  page: 1,
-  pageLimit: 12
-  // filters: [...] // optional later
-};
+  const body = {
+    locationId,
+    page: 1,
+    pageLimit: 12
+  };
 
   try {
     const ghlRes = await fetch(url, {
@@ -42,8 +40,7 @@ const body = {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        // Use the same Version that already worked with your token
-        Version: "2021-07-28"
+        Version: "2021-07-28" // keep this as in API Explorer
       },
       body: JSON.stringify(body)
     });
@@ -60,35 +57,45 @@ const body = {
 
     const data = await ghlRes.json();
 
-    // Most custom object APIs return the records in data.records or data.data
     const rawRecords = data.records || data.data || [];
-    return res.status(200).json({ rawRecords });
-    // If this comes back empty or weird, uncomment the next line once to inspect:
-    // return res.status(200).json({ rawRecords });
 
-    // Filter: only show jobs flagged for website (adjust field names as needed)
+    // Filter logic:
+    // - If show_on_website has values:
+    //    * Exclude records where it includes "dont_post_to_website"
+    // - If show_on_website is empty/missing:
+    //    * Include (default visible)
     const visibleJobs = rawRecords.filter((record) => {
-      const f = record.fields || record.properties || record;
-      const flag =
-        f.show_on_website ||
-        f.showOnWebsite ||
-        f.showOnSite ||
-        f.display_on_site;
+      const p = record.properties || {};
+      const flagArr = p.show_on_website || [];
 
-      return flag === true || flag === "true" || flag === 1 || flag === "1";
+      if (Array.isArray(flagArr) && flagArr.length > 0) {
+        return !flagArr.includes("dont_post_to_website");
+      }
+      // No flag set => show by default
+      return true;
     });
 
     const jobs = visibleJobs.map((record) => {
-      const f = record.fields || record.properties || record;
+      const p = record.properties || {};
+
+      // job_amount is { currency, value } in your payload
+      let amount = null;
+      if (p.job_amount) {
+        if (typeof p.job_amount === "object" && p.job_amount.value != null) {
+          amount = p.job_amount.value;
+        } else {
+          amount = p.job_amount;
+        }
+      }
 
       return {
         id: record.id,
-        title: f.job_title || f.title || "",
-        city: f.city || "",
-        date: f.job_date || f.date || "",
-        amount: f.job_amount || f.amount || null,
-        description: f.job_description || f.description || "",
-        heroImage: f.hero_image_url || f.image_url || ""
+        title: p.job_title || "",
+        city: p.city || "",
+        date: p.job_date || "",
+        amount,
+        description: p.job_description || "",
+        heroImage: p.hero_image_url || "" // you can add this field later in GHL
       };
     });
 
