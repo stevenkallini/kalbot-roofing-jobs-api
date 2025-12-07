@@ -1,5 +1,7 @@
 // api/jobs.js
 
+const API_BASE = "https://services.leadconnectorhq.com";
+
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -7,64 +9,67 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.GHL_API_KEY;
   const locationId = process.env.GHL_LOCATION_ID;
-  const jobsSearchUrl = process.env.GHL_JOBS_SEARCH_URL; 
-  // 👆 this will be the full "Search Object Records" URL for custom_objects.jobs 
-  // copied from the GHL API Explorer (see below).
+  const jobsObjectName = process.env.GHL_JOBS_OBJECT_NAME; // e.g. "custom_objects.jobs"
 
-  if (!apiKey || !locationId || !jobsSearchUrl) {
-    return res.status(500).json({ error: "API not configured" });
+  if (!apiKey || !locationId || !jobsObjectName) {
+    return res.status(500).json({ 
+      error: "API not configured",
+      missing: {
+        hasApiKey: !!apiKey,
+        hasLocationId: !!locationId,
+        hasJobsObjectName: !!jobsObjectName
+      }
+    });
   }
 
-  try {
-    // 🔹 Most Search URLs from GHL include the locationId as a query param already.
-    // If yours does NOT, you can append it here:
-    // const url = `${jobsSearchUrl}&locationId=${locationId}`;
-    const url = jobsSearchUrl;
+  // Build the correct URL:
+  // GET /custom-objects/{objectName}/records?locationId=...&limit=12
+  const url = `${API_BASE}/custom-objects/${encodeURIComponent(
+    jobsObjectName
+  )}/records?locationId=${encodeURIComponent(locationId)}&limit=12`;
 
+  try {
     const ghlRes = await fetch(url, {
       method: "GET",
-     headers: {
-  Authorization: `Bearer ${apiKey}`,
-  "Content-Type": "application/json",
-  Version: "2021-07-28"
-}
-
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        // Use the version header your API Explorer shows; 2021-07-28 is common.
+        Version: "2021-07-28"
+      }
     });
 
-if (!ghlRes.ok) {
-  const text = await ghlRes.text();
-  console.error("GHL error:", text);
-  return res.status(ghlRes.status).json({
-    error: "Error from GHL API",
-    status: ghlRes.status,
-    body: text
-  });
-}
-
+    if (!ghlRes.ok) {
+      const text = await ghlRes.text();
+      console.error("GHL error:", text);
+      return res.status(ghlRes.status).json({
+        error: "Error from GHL API",
+        status: ghlRes.status,
+        body: text
+      });
+    }
 
     const data = await ghlRes.json();
 
-    // 🔹 LOGGING TIP (uncomment this once to see shape in Vercel logs):
-    // console.log("Raw GHL data:", JSON.stringify(data, null, 2));
-
-    // Depending on the API, records might live in data.records or data.data.
+    // Custom objects usually come back as data or records;
     const rawRecords = data.records || data.data || [];
 
-    // ⬇️ Adjust these field names/paths to match your Jobs schema.
-    // Start simple: comment the filter out at first, confirm you see records,
-    // then add filter by show_on_website.
+    // TEMP: if nothing shows, you can return rawRecords directly to inspect shape
+    // return res.status(200).json({ rawRecords });
+
+    // Filter only jobs that should be shown on the website
     const visibleJobs = rawRecords.filter((record) => {
-      // You might get fields like record.show_on_website or record.fields.show_on_website
+      const f = record.fields || record.properties || record;
       const flag =
-        record.show_on_website ||
-        record.showOnWebsite ||
-        (record.fields && record.fields.show_on_website);
+        f.show_on_website ||
+        f.showOnWebsite ||
+        f.showOnSite ||
+        f.display_on_site;
 
       return flag === true || flag === "true" || flag === 1 || flag === "1";
     });
 
     const jobs = visibleJobs.map((record) => {
-      // Try to read fields both directly and via a fields/properties object.
       const f = record.fields || record.properties || record;
 
       return {
@@ -78,9 +83,9 @@ if (!ghlRes.ok) {
       };
     });
 
-    res.status(200).json({ jobs });
+    return res.status(200).json({ jobs });
   } catch (err) {
     console.error("Jobs API error:", err);
-    res.status(500).json({ error: "Unable to fetch jobs" });
+    return res.status(500).json({ error: "Unable to fetch jobs" });
   }
 }
