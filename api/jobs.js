@@ -90,18 +90,60 @@ export default async function handler(req, res) {
       return true;
     });
 
-    const jobs = visibleJobs.map((record) => {
-      const p = record.properties || {};
+const jobs = visibleJobs.map((record) => {
+  const p = record.properties || {};
 
-      // job_amount is { currency, value } in your payload
-      let amount = null;
-      if (p.job_amount) {
-        if (typeof p.job_amount === "object" && p.job_amount.value != null) {
-          amount = p.job_amount.value;
-        } else {
-          amount = p.job_amount;
-        }
-      }
+  // job_amount is { currency, value } in your payload
+  let amount = null;
+  if (p.job_amount) {
+    if (typeof p.job_amount === "object" && p.job_amount.value != null) {
+      amount = p.job_amount.value;
+    } else {
+      amount = p.job_amount;
+    }
+  }
+
+  // show_on_website is an array like ["post_to_website"] / ["dont_post_to_website"]
+  const showOnWebsiteRaw = p.show_on_website || [];
+  const showOnWebsite =
+    !Array.isArray(showOnWebsiteRaw) ||
+    !showOnWebsiteRaw.includes("dont_post_to_website");
+
+  // job_photo is an array of { meta, url } objects in your JSON
+  let photo = "";
+  const rawPhoto = p.job_photo;
+
+  if (Array.isArray(rawPhoto) && rawPhoto.length > 0 && rawPhoto[0].url) {
+    photo = rawPhoto[0].url;         // use first image URL
+  } else if (rawPhoto && typeof rawPhoto === "string") {
+    photo = rawPhoto;                // fallback if it's ever stored as a string
+  }
+
+  return {
+    // core identifiers
+    id: record.id,
+    jobNumber: p.job_number || "",
+    contact: p.contact || "",
+
+    // dropdown "service"
+    service: p.service || "",
+
+    // content for the website
+    title: p.job_title || "",
+    description: p.job_description || "",
+    city: p.city || "",
+    date: p.job_date || "",
+
+    amount,
+    photo,                 // <-- now a plain string URL
+    showOnWebsite,
+    showOnWebsiteRaw,
+
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt
+  };
+});
+
 
       // show_on_website is an array like ["dont_post_to_website"] or []
       const showOnWebsiteRaw = p.show_on_website || [];
