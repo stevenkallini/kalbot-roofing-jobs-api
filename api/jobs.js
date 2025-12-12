@@ -94,35 +94,55 @@ export default async function handler(req, res) {
       }
 
       // Extract photo URL (array of objects)
-      let photo = "";
-      const rawPhoto = p.job_photo;
-      if (Array.isArray(rawPhoto) && rawPhoto.length > 0 && rawPhoto[0].url) {
-        photo = rawPhoto[0].url;
-      } else if (typeof rawPhoto === "string") {
-        photo = rawPhoto;
-      }
+// Extract ALL photo URLs (job_photo can be an array of objects, array of strings, or string)
+let photos = [];
+const rawPhoto = p.job_photo;
+
+if (Array.isArray(rawPhoto)) {
+  photos = rawPhoto
+    .map((item) => {
+      if (!item) return "";
+      if (typeof item === "string") return item;
+      if (typeof item === "object" && item.url) return item.url;
+      return "";
+    })
+    .filter(Boolean);
+} else if (typeof rawPhoto === "string") {
+  // If multiple URLs are stored as comma/newline separated in a text field:
+  const s = rawPhoto.trim();
+  photos = s
+    .split(/[\n,]+/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+// Cover image for cards
+let photo = photos[0] || "";
+
 
       const showOnWebsiteRaw = p.show_on_website || [];
       const showOnWebsite =
         !Array.isArray(showOnWebsiteRaw) ||
         !showOnWebsiteRaw.includes("dont_post_to_website");
 
-      return {
-        id: record.id,
-        jobNumber: p.job_number || "",
-        contact: p.contact || "",
-        service: p.service || "",
-        title: p.job_title || "",
-        description: p.job_description || "",
-        city: p.city || "",
-        date: p.job_date || "",
-        amount,
-        photo,
-        showOnWebsite,
-        showOnWebsiteRaw,
-        createdAt: record.createdAt,
-        updatedAt: record.updatedAt
-      };
+return {
+  id: record.id,
+  jobNumber: p.job_number || "",
+  contact: p.contact || "",
+  service: p.service || "",
+  title: p.job_title || "",
+  description: p.job_description || "",
+  city: p.city || "",
+  date: p.job_date || "",
+  amount,
+  photo,              // cover
+  job_photo: photos,  // ✅ gallery array
+  showOnWebsite,
+  showOnWebsiteRaw,
+  createdAt: record.createdAt,
+  updatedAt: record.updatedAt
+};
+
     });
 
     setCors(res);
