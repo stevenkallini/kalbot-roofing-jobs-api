@@ -95,6 +95,7 @@ export default async function handler(req, res) {
 
       // Extract photo URL (array of objects)
 // Extract ALL photo URLs (job_photo can be an array of objects, array of strings, or string)
+// Extract ALL photo URLs from job_photo
 let photos = [];
 const rawPhoto = p.job_photo;
 
@@ -108,16 +109,16 @@ if (Array.isArray(rawPhoto)) {
     })
     .filter(Boolean);
 } else if (typeof rawPhoto === "string") {
-  // If multiple URLs are stored as comma/newline separated in a text field:
-  const s = rawPhoto.trim();
-  photos = s
+  photos = rawPhoto
     .split(/[\n,]+/)
     .map((x) => x.trim())
     .filter(Boolean);
 }
 
-// Cover image for cards
-let photo = photos[0] || "";
+// Fallback image (never empty)
+if (!photos.length) {
+  photos = ["https://via.placeholder.com/1200x800?text=Projet+de+toiture"];
+}
 
 
       const showOnWebsiteRaw = p.show_on_website || [];
@@ -135,13 +136,13 @@ return {
   city: p.city || "",
   date: p.job_date || "",
   amount,
-  photo,              // cover
-  job_photo: photos,  // ✅ gallery array
+  photo: photos,   // ✅ array of images
   showOnWebsite,
   showOnWebsiteRaw,
   createdAt: record.createdAt,
   updatedAt: record.updatedAt
 };
+
 
     });
 
