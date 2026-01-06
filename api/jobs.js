@@ -46,6 +46,7 @@ function normalizePhotos(rawPhoto) {
   return photos.filter((u) => (seen.has(u) ? false : (seen.add(u), true)));
 }
 
+// Optional helper if you ever want "3 featured" again
 function pickLast3UniqueService(jobs) {
   // newest -> oldest (prefer updatedAt, then createdAt)
   jobs.sort((a, b) => {
@@ -98,11 +99,15 @@ export default async function handler(req, res) {
 
   const url = `${API_BASE}/objects/${encodeURIComponent(jobsObjectName)}/records/search`;
 
+  // You can bump this if needed
   const body = {
     locationId,
     page: 1,
-    pageLimit: 12,
+    pageLimit: 100,
   };
+
+  // Optional: support ?mode=featured to still get only 3 unique services
+  const { mode } = req.query || {};
 
   try {
     const ghlRes = await fetch(url, {
@@ -137,19 +142,20 @@ export default async function handler(req, res) {
     });
 
     // map minimal + normalized
-    const mapped = visibleRecords.map((record) => {
+    let mapped = visibleRecords.map((record) => {
       const p = record.properties || {};
 
       // amount
       let amount = null;
       if (p.job_amount) {
-        amount = (typeof p.job_amount === "object" && p.job_amount.value != null)
-          ? p.job_amount.value
-          : p.job_amount;
+        amount =
+          typeof p.job_amount === "object" && p.job_amount.value != null
+            ? p.job_amount.value
+            : p.job_amount;
       }
 
       const photos = normalizePhotos(p.job_photo);
-      const cover = photos[0]; // ✅ only 1 needed for grid
+      const cover = photos[0]; // single image for cards
 
       const showOnWebsiteRaw = p.show_on_website || [];
       const showOnWebsite =
@@ -165,21 +171,32 @@ export default async function handler(req, res) {
         city: p.city || "",
         date: p.job_date || "",
         amount,
-        cover,       // ✅ single image for cards
-        photos,      // ✅ full array for gallery
+        cover,
+        photos,
         showOnWebsite,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
       };
     });
 
-    // ✅ server-side pick last 3 unique service (so client work + payload shrink)
-    const jobs = pickLast3UniqueService(mapped);
+    // Sort newest → oldest for nicer display
+    mapped.sort((a, b) => {
+      const aMs = Math.max(parseDateMs(a.updatedAt), parseDateMs(a.createdAt));
+      const bMs = Math.max(parseDateMs(b.updatedAt), parseDateMs(b.createdAt));
+      return bMs - aMs;
+    });
+
+    // If you ever want a small "featured" list, call: /api/jobs?mode=featured
+    let jobs;
+    if (mode === "featured") {
+      jobs = pickLast3UniqueService(mapped);
+    } else {
+      jobs = mapped; // ✅ ALL jobs for the Projets page
+    }
 
     setCors(res);
     setCache(res);
     return res.status(200).json({ jobs });
-
   } catch (err) {
     console.error("Jobs API error:", err);
     setCors(res);
